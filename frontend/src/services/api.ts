@@ -78,6 +78,12 @@ api.interceptors.response.use(
       url.includes("/auth/register") ||
       url.includes("/auth/refresh")
 
+    if (err.response?.status === 403 && !isAuthEndpoint) {
+      localStorage.clear()
+      window.location.href = "/login"
+      return Promise.reject(err)
+    }
+
     if (err.response?.status === 401 && !original._retry && !isAuthEndpoint) {
 
       const refreshToken = localStorage.getItem("refreshToken")

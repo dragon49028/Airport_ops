@@ -1,5 +1,6 @@
 import React,{useState,useEffect} from "react"
 import {Plus,Edit2,Trash2,Plane,Filter} from "lucide-react"
+import { StatusBadge } from "../utils/helpers"
 
 import{
   PageHeader,
@@ -248,69 +249,71 @@ export default function FlightsPage(){
 
         <div className="overflow-x-auto">
 
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-800 text-sm">
 
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-900/80">
 
               <tr>
 
-                <th className="table-header">Flight</th>
-                <th className="table-header">Route</th>
-                <th className="table-header">Departure</th>
-                <th className="table-header">Arrival</th>
-                <th className="table-header">Aircraft</th>
-                <th className="table-header">Gate</th>
-                <th className="table-header">Status</th>
-                <th className="table-header text-right">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Flight</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Route</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Departure</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Arrival</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Aircraft</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Gate</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-400">Actions</th>
 
               </tr>
 
             </thead>
 
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-gray-900/40 divide-y divide-gray-800/60 text-gray-200">
 
               {filteredFlights.map(flight=>(
 
                 <tr key={flight.id}>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle">
 
-                    <div className="flex items-center">
-                      <Plane className="h-5 w-5 text-gray-400 mr-2"/>
-                      {flight.flightNumber}
+                    <div className="flex items-center gap-2">
+                      <Plane className="h-5 w-5 text-indigo-400"/>
+                      <span className="font-mono font-semibold text-indigo-300">
+                        {flight.flightNumber}
+                      </span>
                     </div>
 
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle text-gray-200">
                     {flight.origin} → {flight.destination}
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle font-mono text-gray-300">
                     {flight.departureTime
                       ? new Date(flight.departureTime).toLocaleString()
                       : "—"}
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle font-mono text-gray-300">
                     {flight.arrivalTime
                       ? new Date(flight.arrivalTime).toLocaleString()
                       : "—"}
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle text-gray-300">
                     {flight.aircraft?.model || "N/A"}
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle text-gray-300">
                     {flight.gate?.gateNumber || "N/A"}
                   </td>
 
-                  <td className="table-cell">
-                    {flight.status}
+                  <td className="px-4 py-3 align-middle">
+                    <StatusBadge status={flight.status} />
                   </td>
 
-                  <td className="table-cell text-right">
+                  <td className="px-4 py-3 align-middle text-right">
 
                     <button
                       onClick={()=>handleEdit(flight)}

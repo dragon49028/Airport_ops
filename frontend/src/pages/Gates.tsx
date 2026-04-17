@@ -10,6 +10,7 @@ import{
   Input,
   Select
 }from "../components/ui"
+import { StatusBadge } from "../utils/helpers"
 
 import{
   getGates,
@@ -187,62 +188,53 @@ export default function GatesPage(){
 
         <div className="overflow-x-auto">
 
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-800 text-sm">
 
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-900/80">
 
               <tr>
 
-                <th className="table-header">Gate Number</th>
-                <th className="table-header">Terminal</th>
-                <th className="table-header">Capacity</th>
-                <th className="table-header">Status</th>
-                <th className="table-header text-right">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Gate Number</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Terminal</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Capacity</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-400">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-400">Actions</th>
 
               </tr>
 
             </thead>
 
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-gray-900/40 divide-y divide-gray-800/60 text-gray-200">
 
               {gates.map(gate=>(
 
                 <tr key={gate.id}>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle">
 
-                    <div className="flex items-center">
-                      <DoorOpen className="h-5 w-5 text-gray-400 mr-2"/>
-                      {gate.gateNumber}
+                    <div className="flex items-center gap-2">
+                      <DoorOpen className="h-5 w-5 text-indigo-400"/>
+                      <span className="font-mono font-semibold text-indigo-300">
+                        {gate.gateNumber}
+                      </span>
                     </div>
 
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle text-gray-200">
                     {gate.terminal}
                   </td>
 
-                  <td className="table-cell">
+                  <td className="px-4 py-3 align-middle text-gray-300">
                     {gate.capacity}
                   </td>
 
-                  <td className="table-cell">
-
-                    <span className={`px-2 py-1 text-xs rounded-full
-                      ${
-                        gate.status==="AVAILABLE"
-                          ?"bg-green-100 text-green-800"
-                          :gate.status==="OCCUPIED"
-                          ?"bg-blue-100 text-blue-800"
-                          :"bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {gate.status}
-                    </span>
+                  <td className="px-4 py-3 align-middle">
+                    <StatusBadge status={gate.status} />
 
                   </td>
 
-                  <td className="table-cell text-right">
+                  <td className="px-4 py-3 align-middle text-right">
 
                     <button
                       onClick={()=>handleEdit(gate)}

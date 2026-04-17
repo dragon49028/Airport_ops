@@ -18,26 +18,7 @@ A full-stack production-ready web application for managing airport ground operat
 
 ## 🚀 Quick Start
 
-### Option 1 — Dev Mode (fastest)
-
-**Backend** (H2 in-memory, no MySQL needed):
-```bash
-cd backend
-mvn spring-boot:run
-# API runs on http://localhost:8080
-# H2 Console: http://localhost:8080/h2-console (jdbc:h2:mem:airportdb)
-# Swagger UI: http://localhost:8080/swagger-ui.html
-```
-
-**Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev
-# App runs on http://localhost:3000
-```
-
-### Option 2 — Docker (full stack with MySQL)
+### Docker (full stack with MySQL)
 
 ```bash
 docker-compose up --build
@@ -51,7 +32,7 @@ Note: Docker uses the `prod` profile and MySQL. Default demo users are not auto-
 
 ## 🔐 Demo Credentials
 
-These are for dev mode (H2 profile), where sample data is initialized.
+These are for the local dev profile. If you run the app through Docker, create an account from the Register tab first.
 
 | Role     | Username   | Password   | Access |
 |----------|------------|------------|--------|
@@ -138,11 +119,7 @@ GRANT ALL PRIVILEGES ON airport_ops.* TO 'airport'@'%';
 FLUSH PRIVILEGES;
 ```
 
-Then run backend with:
+Run the stack with Docker instead:
 ```bash
-SPRING_PROFILES_ACTIVE=prod \
-MYSQL_HOST=localhost \
-MYSQL_USER=airport \
-MYSQL_PASSWORD=airport123 \
-mvn spring-boot:run
+docker-compose up --build
 ```
