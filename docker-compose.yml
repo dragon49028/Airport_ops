@@ -1,0 +1,92 @@
+
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: airport-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: airport_ops
+      MYSQL_USER: airport
+      MYSQL_PASSWORD: airport123
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "airport", "-pairport123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - airport-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: airport-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - airport-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: airport-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: airport_ops
+      MYSQL_USER: airport
+      MYSQL_PASSWORD: airport123
+      APP_CORS_ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
+      JWT_SECRET: airportGroundOpsSecretKey2024VeryLongSecretKeyForJWTSigning
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - airport-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: airport-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - airport-net
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  airport-net:
+    driver: bridge

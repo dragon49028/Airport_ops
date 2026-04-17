@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #0f1117;
+    --color-surface: #1a1d27;
+    --color-border: #2a2d3e;
+    --color-text: #e2e8f0;
+    --color-muted: #64748b;
+    --color-accent: #6366f1;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-gray-950 text-gray-100 font-sans antialiased;
+    background-image: 
+      radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.04) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-gray-900; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-600; }
+}
+
+@layer components {
+  .card {
+    @apply bg-gray-900 border border-gray-800 rounded-xl;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-800;
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
+           transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/30;
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-900/50 hover:bg-red-800/60 text-red-300 border border-red-800/50;
+  }
+
+  .btn-success {
+    @apply btn bg-emerald-900/50 hover:bg-emerald-800/60 text-emerald-300 border border-emerald-800/50;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-100
+           placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 
+           focus:border-transparent text-sm transition-all;
+  }
+
+  .select {
+    @apply input appearance-none cursor-pointer;
+  }
+
+  .label {
+    @apply block text-xs font-medium text-gray-400 mb-1.5 uppercase tracking-wide;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .table-row {
+    @apply border-b border-gray-800/60 hover:bg-gray-800/30 transition-colors;
+  }
+
+  .stat-card {
+    @apply card p-5 flex flex-col gap-3 hover:border-indigo-800/50 transition-colors;
+  }
+}
