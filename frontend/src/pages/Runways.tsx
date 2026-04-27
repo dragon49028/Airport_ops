@@ -57,6 +57,9 @@ export default function Runways() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['runways'] })
       toast.success('Slot removed')
+    },
+    onError: (e: any) => {
+      toast.error(e.response?.data?.message || 'Unable to remove slot')
     }
   })
 
@@ -220,6 +223,7 @@ function RunwayModal({
 }){
 
   const { checking,result,checkRunway,clear } = useConflictCheck()
+  const [durationValue, setDurationValue] = useState('30')
 
   const {
     register,
@@ -239,14 +243,13 @@ function RunwayModal({
 
   const watchedRunway = watch('runwayNumber')
   const watchedSlotTime = watch('slotTime')
-  const watchedDuration = watch('duration')
 
   const handleConflictCheck = () => {
     if (watchedRunway && watchedSlotTime) {
       checkRunway(
         watchedRunway,
         watchedSlotTime,
-        watchedDuration ?? 30,
+        Number(durationValue) || 30,
         editing?.id
       )
     }
@@ -256,6 +259,7 @@ function RunwayModal({
     clear()
 
     if(editing){
+      setDurationValue(String(editing.duration ?? 30))
       reset({
         runwayNumber:editing.runwayNumber,
         flightScheduleId:editing.flightSchedule?.id ?? '',
@@ -265,6 +269,7 @@ function RunwayModal({
         weatherCondition:editing.weatherCondition
       })
     }else{
+      setDurationValue('30')
       reset({
         duration:30,
         slotType:'LANDING',
@@ -327,7 +332,11 @@ function RunwayModal({
               type="number"
               min="5"
               max="120"
-              {...register('duration')}
+              value={durationValue}
+              onChange={e=>{
+                setDurationValue(e.target.value)
+                setValue('duration', e.target.valueAsNumber, { shouldDirty: true, shouldValidate: true })
+              }}
             />
           </FormField>
 

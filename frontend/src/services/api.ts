@@ -78,12 +78,6 @@ api.interceptors.response.use(
       url.includes("/auth/register") ||
       url.includes("/auth/refresh")
 
-    if (err.response?.status === 403 && !isAuthEndpoint) {
-      localStorage.clear()
-      window.location.href = "/login"
-      return Promise.reject(err)
-    }
-
     if (err.response?.status === 401 && !original._retry && !isAuthEndpoint) {
 
       const refreshToken = localStorage.getItem("refreshToken")
@@ -200,25 +194,42 @@ export const flightsApi = {
 
 export const gatesApi = {
   getAll: (params?: Record<string, unknown>) =>
-    api.get<Gate[]>("/gates", { params }),
+    api.get<GateAssignment[]>('/gates', { params }),
 
   getById: (id: number) =>
-    api.get<Gate>(`/gates/${id}`),
+    api.get<GateAssignment>(`/gates/${id}`),
 
   getAvailable: (time?: string) =>
     api.get<string[]>("/gates/available", { params: { time } }),
 
   create: (data: unknown) =>
-    api.post<Gate>("/gates", data),
+    api.post<GateAssignment>('/gates', data),
 
   update: (id: number, data: unknown) =>
-    api.put<Gate>(`/gates/${id}`, data),
+    api.put<GateAssignment>(`/gates/${id}`, data),
 
   updateStatus: (id: number, status: GateStatus) =>
-    api.patch<Gate>(`/gates/${id}/status`, { status }),
+    api.patch<GateAssignment>(`/gates/${id}/status`, { status }),
 
   delete: (id: number) =>
     api.delete(`/gates/${id}`)
+}
+
+export const gateCatalogApi = {
+  getAll: (params?: Record<string, unknown>) =>
+    api.get<Gate[]>("/gate-catalog", { params }),
+
+  getById: (id: number) =>
+    api.get<Gate>(`/gate-catalog/${id}`),
+
+  create: (data: unknown) =>
+    api.post<Gate>("/gate-catalog", data),
+
+  update: (id: number, data: unknown) =>
+    api.put<Gate>(`/gate-catalog/${id}`, data),
+
+  delete: (id: number) =>
+    api.delete(`/gate-catalog/${id}`)
 }
 
 /* ───────────────── Runways API ───────────────── */
@@ -353,16 +364,16 @@ export const exportApi = {
 
 export const getFlights = flightsApi.getAll
 export const getAircraft = aircraftApi.getAll
-export const getGates = gatesApi.getAll
+export const getGates = gateCatalogApi.getAll
 export const getRunways = runwaysApi.getAll
 export const getMetrics = dashboardApi.getStats
 export const getMaintenance = maintenanceApi.getAll
 export const createMaintenance = maintenanceApi.create
 export const updateMaintenance = maintenanceApi.update
 
-export const createGate = gatesApi.create
-export const updateGate = gatesApi.update
-export const deleteGate = gatesApi.delete
+export const createGate = gateCatalogApi.create
+export const updateGate = gateCatalogApi.update
+export const deleteGate = gateCatalogApi.delete
 
 export const createFlight = flightsApi.create
 export const updateFlight = flightsApi.update

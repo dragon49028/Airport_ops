@@ -1,6 +1,6 @@
 import React,{useState,useEffect} from "react"
 import {Plus,Edit2,Trash2,Plane,Filter} from "lucide-react"
-import { StatusBadge } from "../utils/helpers"
+import { StatusBadge, fmt } from "../utils/helpers"
 
 import{
   PageHeader,
@@ -19,21 +19,22 @@ import{
   updateFlight,
   deleteFlight,
   getAircraft,
-  getGates
+  gatesApi
 }from "../services/api"
 
 import type{
   FlightSchedule,
   Aircraft,
-  Gate,
-  FlightStatus
+  FlightStatus,
+  GateAssignment
 }from "../types"
 
 export default function FlightsPage(){
 
   const[flights,setFlights]=useState<FlightSchedule[]>([])
   const[aircraft,setAircraft]=useState<Aircraft[]>([])
-  const[gates,setGates]=useState<Gate[]>([])
+  const[gates,setGates]=useState<GateAssignment[]>([])
+  const[availableGates,setAvailableGates]=useState<string[]>([])
 
   const[loading,setLoading]=useState(true)
   const[error,setError]=useState<string | null>(null)
@@ -51,7 +52,7 @@ export default function FlightsPage(){
     arrivalTime:"",
     status:"SCHEDULED" as FlightStatus,
     aircraftId:"",
-    gateId:""
+    gateNumber:""
   })
 
   const[errors,setErrors]=useState<Record<string,string>>({})
@@ -70,16 +71,19 @@ export default function FlightsPage(){
       const[
         flightsRes,
         aircraftRes,
-        gatesRes
+        gatesRes,
+        availableRes
       ]=await Promise.all([
         getFlights({page:0,size:100}),
         getAircraft(),
-        getGates()
+        gatesApi.getAll(),
+        gatesApi.getAvailable()
       ])
 
       setFlights(flightsRes?.data?.content || [])
       setAircraft(aircraftRes?.data || [])
       setGates(gatesRes?.data || [])
+      setAvailableGates(availableRes?.data || [])
 
     }catch(err:any){
 
@@ -103,7 +107,7 @@ export default function FlightsPage(){
       arrivalTime:"",
       status:"SCHEDULED",
       aircraftId:"",
-      gateId:""
+      gateNumber:""
     })
 
     setEditing(null)
@@ -132,15 +136,39 @@ export default function FlightsPage(){
     try{
 
       const payload={
-        ...formData,
-        aircraftId:Number(formData.aircraftId),
-        gateId:formData.gateId ? Number(formData.gateId):undefined
+        flightNumber:formData.flightNumber,
+        origin:formData.origin,
+        destination:formData.destination,
+        scheduledDeparture:formData.departureTime || undefined,
+        scheduledArrival:formData.arrivalTime || undefined,
+        status:formData.status,
+        aircraftId:Number(formData.aircraftId)
       }
 
-      if(editing){
-        await updateFlight(editing.id,payload)
-      }else{
-        await createFlight(payload)
+      const savedFlight = editing
+        ? (await updateFlight(editing.id,payload)).data
+        : (await createFlight(payload)).data
+
+      const existingAssignment = gates.find(g =>
+        g.flightSchedule?.id === savedFlight.id &&
+        g.status !== 'CANCELLED' &&
+        g.status !== 'RELEASED'
+      )
+
+      if (formData.gateNumber) {
+        const gatePayload = {
+          gateNumber: formData.gateNumber,
+          flightScheduleId: savedFlight.id,
+          assignedTime: formData.departureTime || undefined,
+          releaseTime: formData.arrivalTime || undefined,
+          notes: `Flight ${savedFlight.flightNumber}`
+        }
+
+        if (existingAssignment) {
+          await gatesApi.update(existingAssignment.id, gatePayload)
+        } else {
+          await gatesApi.create(gatePayload)
+        }
       }
 
       fetchData()
@@ -161,11 +189,11 @@ export default function FlightsPage(){
       flightNumber:flight.flightNumber || "",
       origin:flight.origin || "",
       destination:flight.destination || "",
-      departureTime:flight.departureTime || "",
-      arrivalTime:flight.arrivalTime || "",
+      departureTime:flight.scheduledDeparture || "",
+      arrivalTime:flight.scheduledArrival || "",
       status:flight.status,
       aircraftId:flight.aircraft?.id?.toString() || "",
-      gateId:flight.gate?.id?.toString() || ""
+      gateNumber:flight.gateAssignments?.find(g => g.status === 'ACTIVE' || g.status === 'SCHEDULED')?.gateNumber || ""
     })
 
     setIsModalOpen(true)
@@ -189,6 +217,21 @@ export default function FlightsPage(){
     statusFilter==="ALL"
       ? flights
       : flights.filter(f=>f.status===statusFilter)
+
+  useEffect(() => {
+    if (!isModalOpen) return
+
+    const loadAvailable = async () => {
+      try {
+        const res = await gatesApi.getAvailable(formData.departureTime || undefined)
+        setAvailableGates(res?.data || [])
+      } catch {
+        setAvailableGates([])
+      }
+    }
+
+    loadAvailable()
+  }, [isModalOpen, formData.departureTime])
 
   if(loading){
     return(
@@ -290,14 +333,14 @@ export default function FlightsPage(){
                   </td>
 
                   <td className="px-4 py-3 align-middle font-mono text-gray-300">
-                    {flight.departureTime
-                      ? new Date(flight.departureTime).toLocaleString()
+                    {flight.scheduledDeparture
+                      ? fmt.datetime(flight.scheduledDeparture)
                       : "—"}
                   </td>
 
                   <td className="px-4 py-3 align-middle font-mono text-gray-300">
-                    {flight.arrivalTime
-                      ? new Date(flight.arrivalTime).toLocaleString()
+                    {flight.scheduledArrival
+                      ? fmt.datetime(flight.scheduledArrival)
                       : "—"}
                   </td>
 
@@ -306,7 +349,7 @@ export default function FlightsPage(){
                   </td>
 
                   <td className="px-4 py-3 align-middle text-gray-300">
-                    {flight.gate?.gateNumber || "N/A"}
+                    {flight.gateAssignments?.find(g=>g.status==='ACTIVE' || g.status==='SCHEDULED')?.gateNumber || flight.gate?.gateNumber || "N/A"}
                   </td>
 
                   <td className="px-4 py-3 align-middle">
@@ -412,15 +455,18 @@ export default function FlightsPage(){
           <FormField label="Gate" error={undefined} required={false}>
 
             <Select
-              value={formData.gateId}
-              onChange={e=>setFormData({...formData,gateId:e.target.value})}
+              value={formData.gateNumber}
+              onChange={e=>setFormData({...formData,gateNumber:e.target.value})}
             >
 
               <option value="">Select Gate</option>
 
-              {gates.map(g=>(
-                <option key={g.id} value={g.id}>
-                  {g.gateNumber}
+              {Array.from(new Set([
+                ...availableGates,
+                ...(formData.gateNumber ? [formData.gateNumber] : [])
+              ])).map(gateNumber => (
+                <option key={gateNumber} value={gateNumber}>
+                  {gateNumber}
                 </option>
               ))}
 

@@ -46,6 +46,14 @@ export default function ResourceAllocation() {
   const flights = flightPage?.content ?? []
 
   const currentHour = new Date().getHours()
+  const gateSummary = ALL_GATES.reduce(
+    (acc, gate) => {
+      const occupancy = getOccupancy(gates as GateAssignment[], gate, currentHour)
+      acc[occupancy] += 1
+      return acc
+    },
+    { occupied: 0, scheduled: 0, free: 0 }
+  )
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -56,6 +64,21 @@ export default function ResourceAllocation() {
       />
 
       <WeatherWidget />
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="card p-4">
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Occupied Now</div>
+          <div className="mt-1 text-2xl font-display font-bold text-red-300">{gateSummary.occupied}</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Scheduled</div>
+          <div className="mt-1 text-2xl font-display font-bold text-emerald-300">{gateSummary.scheduled}</div>
+        </div>
+        <div className="card p-4">
+          <div className="text-xs text-gray-500 uppercase tracking-wide">Free</div>
+          <div className="mt-1 text-2xl font-display font-bold text-gray-200">{gateSummary.free}</div>
+        </div>
+      </div>
 
       {/* Gate Heatmap */}
       <div className="card">

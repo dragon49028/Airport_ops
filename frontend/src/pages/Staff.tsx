@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 import { StatusBadge } from '../utils/helpers'
 import { staffSchema, type StaffInput } from '../utils/schemas'
 import type { GroundStaff, StaffRole, StaffShift, StaffStatus } from '../types'
-import { DataTable, Modal, PageHeader, FormField, SearchInput, ConfirmDialog } from '../components/ui'
+import { DataTable, Modal, PageHeader, FormField, SearchInput, ConfirmDialog, Input, Select } from '../components/ui'
 import { Plus, Edit2, Trash2, Phone, Mail } from 'lucide-react'
 import { cn } from '../utils/helpers'
 import toast from 'react-hot-toast'
@@ -260,7 +260,7 @@ function StaffModal({
     formState: { errors }
   } = useForm<StaffInput>({
     resolver: zodResolver(staffSchema),
-    defaultValues: { role: 'GATE_AGENT', shift: 'DAY', status: 'AVAILABLE' }
+    defaultValues: { role: 'GATE_AGENT', shift: 'DAY', status: 'AVAILABLE', currentAssignment: '', phone: '', email: '', certifications: '' }
   })
 
   useEffect(() => {
@@ -271,8 +271,10 @@ function StaffModal({
         role: editing.role,
         shift: editing.shift,
         status: editing.status,
+        currentAssignment: editing.currentAssignment ?? '',
         phone: editing.phone ?? '',
-        email: editing.email ?? ''
+        email: editing.email ?? '',
+        certifications: editing.certifications ?? ''
       })
     }
   }, [editing, reset])
@@ -286,11 +288,55 @@ function StaffModal({
     >
       <form onSubmit={handleSubmit(onSave)} className="space-y-4">
         <FormField label="Staff ID" required error={errors.staffId?.message}>
-          <input className="input" {...register('staffId')} />
+          <Input {...register('staffId')} />
         </FormField>
 
         <FormField label="Full Name" required error={errors.name?.message}>
-          <input className="input" {...register('name')} />
+          <Input {...register('name')} />
+        </FormField>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <FormField label="Role" required error={errors.role?.message}>
+            <Select {...register('role')}>
+              {ROLES.map(role => (
+                <option key={role} value={role}>{role.replace(/_/g, ' ')}</option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Shift" required error={errors.shift?.message}>
+            <Select {...register('shift')}>
+              {SHIFTS.map(shift => (
+                <option key={shift} value={shift}>{shift}</option>
+              ))}
+            </Select>
+          </FormField>
+
+          <FormField label="Status" required error={errors.status?.message}>
+            <Select {...register('status')}>
+              {STATUSES.map(status => (
+                <option key={status} value={status}>{status.replace(/_/g, ' ')}</option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+
+        <FormField label="Current Assignment" error={errors.currentAssignment?.message}>
+          <Input {...register('currentAssignment')} placeholder="Gate A1 - Flight AI-101" />
+        </FormField>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField label="Phone" error={errors.phone?.message}>
+            <Input {...register('phone')} />
+          </FormField>
+
+          <FormField label="Email" error={errors.email?.message}>
+            <Input {...register('email')} />
+          </FormField>
+        </div>
+
+        <FormField label="Certifications" error={errors.certifications?.message}>
+          <Input {...register('certifications')} placeholder="A320, B737, Hazard" />
         </FormField>
 
         <div className="flex gap-3 justify-end pt-2">

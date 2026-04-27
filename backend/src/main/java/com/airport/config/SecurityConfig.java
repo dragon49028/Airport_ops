@@ -1,8 +1,8 @@
 package com.airport.config;
 
-import com.airport.security.JwtAuthenticationFilter;
-import com.airport.security.CustomUserDetailsService;
-import lombok.RequiredArgsConstructor;
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,8 +24,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
-import java.util.List;
+import com.airport.security.CustomUserDetailsService;
+import com.airport.security.JwtAuthenticationFilter;
+
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
@@ -53,6 +55,7 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("ADMIN", "STAFF", "OPERATOR")
                     .requestMatchers(HttpMethod.POST, "/api/**").hasAnyRole("ADMIN", "STAFF")
                     .requestMatchers(HttpMethod.PUT, "/api/**").hasAnyRole("ADMIN", "STAFF")
+                        .requestMatchers(HttpMethod.DELETE, "/api/runways/**").hasAnyRole("ADMIN", "STAFF")
                     .requestMatchers(HttpMethod.DELETE, "/api/**").hasRole("ADMIN")
                     .anyRequest().authenticated()
             )

@@ -1,5 +1,12 @@
 package com.airport.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.airport.dto.RunwayRequest;
 import com.airport.entity.FlightSchedule;
 import com.airport.entity.RunwaySlot;
@@ -8,12 +15,8 @@ import com.airport.exception.ConflictException;
 import com.airport.exception.ResourceNotFoundException;
 import com.airport.repository.FlightScheduleRepository;
 import com.airport.repository.RunwaySlotRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -25,11 +28,14 @@ public class RunwaySlotService {
     private final ConflictDetectionService conflictService;
     private final SseEventPublisher ssePublisher;
 
-    public List<RunwaySlot> findAll() { return runwayRepo.findAll(); }
+    public List<RunwaySlot> findAll() {
+        return refreshStatuses(runwayRepo.findAll());
+    }
 
     public RunwaySlot findById(Long id) {
-        return runwayRepo.findById(id)
+        RunwaySlot slot = runwayRepo.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Runway slot not found: " + id));
+        return refreshStatus(slot);
     }
 
     public RunwaySlot create(RunwayRequest req) {
@@ -46,7 +52,7 @@ public class RunwaySlotService {
         }
         RunwaySlot slot = new RunwaySlot();
         mapRequest(req, slot);
-        RunwaySlot saved = runwayRepo.save(slot);
+        RunwaySlot saved = runwayRepo.save(refreshStatus(slot));
         ssePublisher.publish("runway-update", Map.of("event", "booked", "runway", saved.getRunwayNumber()));
         return saved;
     }
@@ -60,10 +66,36 @@ public class RunwaySlotService {
             if (result.isHasConflict()) throw new ConflictException(result.getMessage());
         }
         mapRequest(req, existing);
-        return runwayRepo.save(existing);
+        return runwayRepo.save(refreshStatus(existing));
     }
 
     public void delete(Long id) { runwayRepo.deleteById(id); }
+
+    private List<RunwaySlot> refreshStatuses(List<RunwaySlot> slots) {
+        return slots.stream().map(this::refreshStatus).toList();
+    }
+
+    private RunwaySlot refreshStatus(RunwaySlot slot) {
+        if (slot == null || slot.getStatus() == RunwaySlot.SlotStatus.CANCELLED || slot.getStatus() == RunwaySlot.SlotStatus.COMPLETED) {
+            return slot;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime slotEnd = slot.getSlotTime().plusMinutes(slot.getDuration() != null ? slot.getDuration() : 30);
+
+        if (now.isAfter(slotEnd)) {
+            slot.setStatus(RunwaySlot.SlotStatus.COMPLETED);
+            return runwayRepo.save(slot);
+        }
+
+        if (!now.isBefore(slot.getSlotTime())) {
+            slot.setStatus(RunwaySlot.SlotStatus.IN_PROGRESS);
+            return runwayRepo.save(slot);
+        }
+
+        slot.setStatus(RunwaySlot.SlotStatus.SCHEDULED);
+        return slot;
+    }
 
     private void mapRequest(RunwayRequest req, RunwaySlot slot) {
         slot.setRunwayNumber(req.getRunwayNumber());

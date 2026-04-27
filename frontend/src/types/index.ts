@@ -41,6 +41,7 @@ export interface FlightSchedule {
   flightNumber: string
   aircraft?: Aircraft
   gate?: Gate
+  gateAssignments?: GateAssignment[]
   origin?: string
   destination?: string
   airline?: string

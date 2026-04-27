@@ -1,302 +1,216 @@
-import React, { useState, useEffect } from "react"
-import {
-  Plane,
-  Clock,
-  PlaneTakeoff,
-  Users,
-  Package,
-  UserCheck,
-  DoorOpen,
-  DollarSign,
-  Fuel,
-  Wrench
-} from "lucide-react"
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Plane, Clock, PlaneTakeoff, Users, DoorOpen, Fuel, Wrench, AlertTriangle, Activity, Radio } from 'lucide-react'
+import { PageHeader, Card, StatCard, ErrorMessage, PageLoader } from '../components/ui'
+import { WeatherWidget } from '../components/WeatherWidget'
+import { dashboardApi, flightsApi, maintenanceApi, gatesApi } from '../services/api'
+import { StatusBadge, fmt, cn } from '../utils/helpers'
+import type { FlightSchedule, DashboardStats, GateAssignment, MaintenanceClearance } from '../types'
 
-import {
-  PageHeader,
-  Card,
-  StatCard,
-  ErrorMessage
-} from "../components/ui"
+function LiveClock() {
+  const [time, setTime] = React.useState(new Date())
 
-import { getFlights, getMetrics } from "../services/api"
-
-import type {
-  FlightSchedule,
-  DashboardStats
-} from "../types"
-
-export default function Dashboard() {
-
-  const [metrics, setMetrics] = useState<DashboardStats | null>(null)
-  const [flights, setFlights] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchDashboardData()
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setTime(new Date()), 1000)
+    return () => window.clearInterval(timer)
   }, [])
 
-  const fetchDashboardData = async () => {
+  return (
+    <div className="flex items-center gap-2 text-sm text-gray-500">
+      <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+      <span className="font-mono text-gray-400">{time.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
+      <span className="text-gray-700">IST</span>
+    </div>
+  )
+}
 
-    try {
+function getFlightGateNumber(flight: FlightSchedule): string {
+  const activeAssignment = flight.gateAssignments?.find(g => g.status === 'ACTIVE' || g.status === 'SCHEDULED')
+  return activeAssignment?.gateNumber ?? flight.gate?.gateNumber ?? '—'
+}
 
-      setLoading(true)
-      setError(null)
+export default function Dashboard() {
+  const { data: stats, isLoading, error } = useQuery<DashboardStats>({
+    queryKey: ['dashboard-stats'],
+    queryFn: () => dashboardApi.getStats().then(r => r.data),
+    refetchInterval: 30_000,
+  })
 
-      const [metricsRes, flightsRes] = await Promise.all([
-        getMetrics(),
-        getFlights({ page: 0, size: 10 })
-      ])
+  const { data: flightPage } = useQuery({
+    queryKey: ['dashboard-flights'],
+    queryFn: () => flightsApi.getAll({ size: 20 }).then(r => r.data),
+    refetchInterval: 30_000,
+  })
 
-      setMetrics(metricsRes?.data || metricsRes)
-      setFlights(flightsRes?.data || flightsRes)
+  const { data: maintenance } = useQuery({
+    queryKey: ['dashboard-maintenance'],
+    queryFn: () => maintenanceApi.getAll().then(r => r.data),
+  })
 
-    } catch (err: any) {
+  const { data: gates } = useQuery<GateAssignment[]>({
+    queryKey: ['dashboard-gates'],
+    queryFn: () => gatesApi.getAll().then(r => r.data),
+  })
 
-      setError(err.message || "Failed to load dashboard data")
+  if (isLoading) return <PageLoader />
+  if (error) return <ErrorMessage message="Failed to load dashboard" />
 
-    } finally {
+  const flights = Array.isArray(flightPage)
+    ? flightPage
+    : Array.isArray((flightPage as any)?.content)
+      ? (flightPage as any).content
+      : []
 
-      setLoading(false)
+  const maintenanceList = Array.isArray(maintenance)
+    ? maintenance
+    : Array.isArray((maintenance as any)?.content)
+      ? (maintenance as any).content
+      : []
 
-    }
-  }
+  const activeFlights = flights.filter((f: FlightSchedule) => ['SCHEDULED', 'BOARDING', 'IN_FLIGHT', 'ARRIVED', 'DELAYED'].includes(f.status))
+  const criticalAlerts = maintenanceList.filter((m: MaintenanceClearance) => m.severity === 'CRITICAL' && m.clearanceStatus !== 'CLEARED')
+  const activeGateNumbers = new Set<string>((gates ?? []).filter(g => g.status === 'ACTIVE' || g.status === 'SCHEDULED').map(g => g.gateNumber))
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <ErrorMessage
-        message={error}
-        onRetry={() => window.location.reload()}
-      />
-    )
-  }
-
-  const stats: React.ComponentProps<typeof StatCard>[] = [
-
-    {
-      label: "Total Flights",
-      value: metrics?.totalFlights,
-      icon: Plane,
-      color: "sky",
-      trend: 5,
-      sub: "vs last month"
-    },
-
-    {
-      label: "On-Time Performance",
-      value: (metrics as any)?.onTimePerformance,
-      icon: Clock,
-      color: "emerald",
-      trend: 2,
-      sub: "improvement"
-    },
-
-    {
-      label: "Active Aircraft",
-      value: (metrics as any)?.activeAircraft,
-      icon: PlaneTakeoff,
-      color: "purple",
-      trend: 0,
-      sub: "stable"
-    },
-
-    {
-      label: "Total Passengers",
-      value: (metrics as any)?.totalPassengers,
-      icon: Users,
-      color: "indigo",
-      trend: 12,
-      sub: "vs last month"
-    },
-
-    {
-      label: "Baggage Handled",
-      value: (metrics as any)?.baggageHandled,
-      icon: Package,
-      color: "rose",
-      trend: 8,
-      sub: "efficiency up"
-    },
-
-    {
-      label: "Staff On Duty",
-      value: (metrics as any)?.staffOnDuty,
-      icon: UserCheck,
-      color: "teal",
-      trend: 3,
-      sub: "current shift"
-    },
-
-    {
-      label: "Gate Utilization",
-      value: (metrics as any)?.gateUtilization,
-      icon: DoorOpen,
-      color: "amber",
-      trend: 15,
-      sub: "peak hours"
-    },
-
-    {
-      label: "Revenue Today",
-      value: (metrics as any)?.revenueToday,
-      icon: DollarSign,
-      color: "emerald",
-      trend: 10,
-      sub: "USD"
-    },
-
-    {
-      label: "Fuel Consumption",
-      value: (metrics as any)?.fuelConsumption,
-      icon: Fuel,
-      color: "amber",
-      trend: -3,
-      sub: "optimization"
-    },
-
-    {
-      label: "Maintenance Tasks",
-      value: (metrics as any)?.maintenanceTasks,
-      icon: Wrench,
-      color: "purple",
-      trend: 5,
-      sub: "scheduled"
-    }
-
+  const statCards = [
+    { label: 'Total Flights', value: stats?.totalFlights, icon: Plane, color: 'indigo' as const, sub: 'all schedules' },
+    { label: 'Active Flights', value: stats?.activeFlights, icon: Activity, color: 'sky' as const, sub: 'in motion' },
+    { label: 'Delayed', value: stats?.delayedFlights, icon: Clock, color: 'amber' as const, sub: 'needs attention' },
+    { label: 'Total Aircraft', value: stats?.totalAircraft, icon: PlaneTakeoff, color: 'purple' as const, sub: 'fleet size' },
+    { label: 'Available Aircraft', value: stats?.availableAircraft, icon: PlaneTakeoff, color: 'emerald' as const, sub: 'ready to deploy' },
+    { label: 'Occupied Gates', value: stats?.occupiedGates, icon: DoorOpen, color: 'rose' as const, sub: 'current assignments' },
+    { label: 'Pending Refuels', value: stats?.pendingRefuels, icon: Fuel, color: 'teal' as const, sub: 'fuel queue' },
+    { label: 'Maintenance Open', value: stats?.pendingMaintenance, icon: Wrench, color: 'rose' as const, sub: 'needs clearance' },
+    { label: 'Staff Available', value: stats?.availableStaff, icon: Users, color: 'emerald' as const, sub: `of ${stats?.totalStaff ?? 0} total` },
+    { label: 'Critical Alerts', value: stats?.criticalAlerts, icon: AlertTriangle, color: 'red' as const, sub: 'blockers' },
   ]
 
-  const recentFlights: FlightSchedule[] =
-    flights?.content?.length > 0 ? flights.content : []
-
   return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-display font-bold text-white">Operations Center</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Real-time airport ground operations overview</p>
+        </div>
+        <LiveClock />
+      </div>
 
-    <div className="space-y-6">
+      <WeatherWidget />
 
-      <PageHeader
-        title="Dashboard"
-        subtitle="Overview of airport operations"
-        actions={<></>}
-      />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        {stats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        {statCards.map(card => (
+          <StatCard key={card.label} {...card} />
         ))}
+      </div>
 
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 card">
+          <div className="card-header flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Plane className="w-4 h-4 text-indigo-400" />
+              <h2 className="font-display font-semibold text-white text-sm">Active Flights</h2>
+            </div>
+            <span className="text-xs text-gray-600">{activeFlights.length} operations</span>
+          </div>
+
+          <div className="divide-y divide-gray-800/60">
+            {activeFlights.length === 0 ? (
+              <p className="text-center text-gray-600 py-10 text-sm">No active flights</p>
+            ) : (
+              activeFlights.slice(0, 8).map((f: FlightSchedule) => (
+                <div key={f.id} className="px-5 py-3 flex items-center gap-4 hover:bg-gray-800/20 transition-colors">
+                  <div className="w-16 font-mono text-xs font-semibold text-indigo-300">{f.flightNumber}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-200 font-medium truncate">
+                      {f.origin} → {f.destination}
+                    </div>
+                    <div className="text-xs text-gray-600 font-mono">
+                      {f.aircraft?.registrationNumber ?? '—'} · {f.aircraft?.model ?? ''} · Gate {getFlightGateNumber(f)}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-gray-500 hidden sm:block">
+                    <div>ARR {fmt.time(f.scheduledArrival)}</div>
+                    <div>DEP {fmt.time(f.scheduledDeparture)}</div>
+                  </div>
+                  <StatusBadge status={f.status} />
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+            <h2 className="font-display font-semibold text-white text-sm">Critical Alerts</h2>
+          </div>
+          <div className="p-4 space-y-3">
+            {criticalAlerts.length === 0 ? (
+              <div className="text-center py-8 text-gray-600 text-sm">
+                <div className="text-emerald-400 text-2xl mb-2">✓</div>
+                All clear — no critical issues
+              </div>
+            ) : (
+              criticalAlerts.map((a: MaintenanceClearance) => (
+                <div key={a.id} className="p-3 bg-red-900/20 border border-red-800/30 rounded-xl">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="text-xs font-mono text-red-300">{a.aircraft?.registrationNumber ?? 'N/A'}</div>
+                      <div className="text-xs text-gray-400 line-clamp-2">{a.issueDescription}</div>
+                      <StatusBadge status={a.clearanceStatus} />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       <Card>
-
-        <h3 className="text-lg font-semibold mb-4">
-          Recent Flights
-        </h3>
-
-        <div className="overflow-x-auto">
-
-          <table className="min-w-full divide-y divide-gray-200">
-
-            <thead className="bg-gray-50">
-
-              <tr>
-
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Flight
-                </th>
-
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Route
-                </th>
-
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Departure
-                </th>
-
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Status
-                </th>
-
-              </tr>
-
-            </thead>
-
-            <tbody className="bg-white divide-y divide-gray-200">
-
-              {recentFlights.length === 0 ? (
-
-                <tr>
-                  <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                    No recent flights
-                  </td>
-                </tr>
-
-              ) : (
-
-                recentFlights.slice(0, 5).map((f: any) => (
-
-                  <tr key={f.id}>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-
-                      <div className="flex items-center">
-                        <Plane className="h-5 w-5 text-gray-400 mr-2" />
-                        {f.flightNumber}
-                      </div>
-
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {f.origin} → {f.destination}
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {new Date(f.departureTime).toLocaleString()}
-                    </td>
-
-                    <td className="px-6 py-4 whitespace-nowrap">
-
-                      <span
-                        className={`px-2 inline-flex text-xs font-semibold rounded-full
-                        ${
-                          f.status === "ON_TIME"
-                            ? "bg-green-100 text-green-800"
-                            : f.status === "DELAYED"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : f.status === "CANCELLED"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
-                      >
-                        {f.status}
-                      </span>
-
-                    </td>
-
-                  </tr>
-
-                ))
-
-              )}
-
-            </tbody>
-
-          </table>
-
+        <div className="card-header">
+          <h2 className="font-display font-semibold text-white text-sm flex items-center gap-2">
+            <DoorOpen className="w-4 h-4 text-purple-400" />
+            Gate Overview
+          </h2>
         </div>
-
+        <div className="p-5">
+          <GateAvailabilityStrip occupied={activeGateNumbers} />
+        </div>
       </Card>
-
     </div>
-
   )
+}
 
+function GateAvailabilityStrip({ occupied }: { occupied: Set<string> }) {
+  const gates = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'D1', 'D2', 'D3', 'D4']
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {gates.map(gate => (
+        <div
+          key={gate}
+          className={cn(
+            'flex items-center justify-center w-12 h-10 rounded-lg text-xs font-mono font-semibold border transition-all cursor-default',
+            occupied.has(gate)
+              ? 'bg-red-900/30 border-red-800/40 text-red-300'
+              : 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400'
+          )}
+        >
+          {gate}
+        </div>
+      ))}
+
+      <div className="w-full flex items-center gap-4 mt-2 text-xs text-gray-600">
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-emerald-900/40 border border-emerald-800/30 inline-block" />
+          Available
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm bg-red-900/40 border border-red-800/30 inline-block" />
+          Occupied
+        </span>
+      </div>
+    </div>
+  )
 }

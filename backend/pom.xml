@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.3</version>
+        <version>3.5.13</version>
         <relativePath/>
     </parent>
 
@@ -17,10 +17,9 @@
     <name>Airport Ground Operations Management System</name>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>25</java.version>
         <jjwt.version>0.12.3</jjwt.version>
-        <!-- Explicit pin: 1.18.30+ fixes TypeTag.UNKNOWN crash on Java 17 -->
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.46</lombok.version>
     </properties>
 
     <dependencies>
@@ -142,8 +141,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
-                    <source>17</source>
-                    <target>17</target>
+                    <source>25</source>
+                    <target>25</target>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>

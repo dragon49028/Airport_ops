@@ -8,10 +8,10 @@ import {
   FormField,
   Input,
   Select,
-  StatCard,
   ErrorMessage
 } from '../components/ui'
-import { getMaintenance, createMaintenance, updateMaintenance, getAircraft } from '../services/api'
+import { getMaintenance, createMaintenance, updateMaintenance, getAircraft, maintenanceApi } from '../services/api'
+import { StatusBadge, cn } from '../utils/helpers'
 
 type IssueType =
   | 'ENGINE'
@@ -24,7 +24,7 @@ type IssueType =
   | 'PRESSURIZATION'
   | 'OTHER'
 
-type Severity = 'MINOR' | 'MAJOR' | 'CRITICAL'
+type Severity = 'MINOR' | 'MODERATE' | 'CRITICAL'
 
 export default function MaintenancePage() {
 
@@ -66,6 +66,15 @@ export default function MaintenancePage() {
       console.error('Error fetching maintenance data',e)
     }finally{
       setLoading(false)
+    }
+  }
+
+  const approveClearance = async (id: number, approvedBy: string) => {
+    try {
+      await maintenanceApi.approve(id, approvedBy)
+      await fetchData()
+    } catch (e) {
+      console.error('Error approving maintenance', e)
     }
   }
 
@@ -149,37 +158,48 @@ export default function MaintenancePage() {
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-left">Aircraft</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-left">Issue</th>
                 <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-left">Severity</th>
-                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-left">Status</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-left">Clearance</th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase text-left">Action</th>
               </tr>
             </thead>
 
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-gray-900/40 divide-y divide-gray-800/60 text-gray-200">
 
               {maintenance.map((item)=>(
-                <tr key={item.id}>
+                <tr key={item.id} className="hover:bg-gray-800/20 transition-colors">
 
-                  <td className="px-6 py-4">
-                    {item.aircraft?.registration}
+                  <td className="px-6 py-4 font-mono text-indigo-300 font-semibold">
+                    {item.aircraft?.registrationNumber || 'N/A'}
                   </td>
 
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 text-gray-300">
                     {item.issueDescription}
                   </td>
 
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      item.severity==='CRITICAL'
-                        ? 'bg-red-100 text-red-800'
-                        : item.severity==='MAJOR'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : 'bg-green-100 text-green-800'
-                    }`}>
+                    <span className={cn('badge',
+                      item.severity === 'CRITICAL'
+                        ? 'bg-red-900/40 text-red-300 border border-red-800/40'
+                        : item.severity === 'MODERATE'
+                        ? 'bg-amber-900/40 text-amber-300 border border-amber-800/40'
+                        : 'bg-emerald-900/40 text-emerald-300 border border-emerald-800/40'
+                    )}>
                       {item.severity}
                     </span>
                   </td>
 
                   <td className="px-6 py-4">
-                    {item.status}
+                    <StatusBadge status={item.clearanceStatus} />
+                  </td>
+
+                  <td className="px-6 py-4">
+                    {item.clearanceStatus !== 'CLEARED' ? (
+                      <Button type="button" onClick={() => approveClearance(item.id, 'operations')}>
+                        Clear
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-500">Cleared</span>
+                    )}
                   </td>
 
                 </tr>
@@ -209,7 +229,7 @@ export default function MaintenancePage() {
               <option value="">Select Aircraft</option>
               {aircraft.map((ac)=>(
                 <option key={ac.id} value={ac.id}>
-                  {ac.registration} - {ac.model}
+                  {ac.registrationNumber} - {ac.model}
                 </option>
               ))}
             </Select>
@@ -246,7 +266,7 @@ export default function MaintenancePage() {
               onChange={(e)=>setFormData({...formData,severity:e.target.value as Severity})}
             >
               <option value="MINOR">Minor</option>
-              <option value="MAJOR">Major</option>
+              <option value="MODERATE">Moderate</option>
               <option value="CRITICAL">Critical</option>
             </Select>
           </FormField>

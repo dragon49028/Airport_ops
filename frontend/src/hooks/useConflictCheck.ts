@@ -14,6 +14,10 @@ export function useConflictCheck(): UseConflictCheckReturn {
   const [checking, setChecking] = useState(false)
   const [result, setResult]     = useState<ConflictResult | null>(null)
 
+  const clear = useCallback(() => {
+    setResult(null)
+  }, [])
+
   const checkGate = useCallback(async (gate: string, start: string, end: string, excludeId?: number) => {
     if (!gate || !start || !end) return { hasConflict: false }
     setChecking(true)
@@ -48,5 +52,5 @@ export function useConflictCheck(): UseConflictCheckReturn {
     }
   }, [])
 
-  return { checking, result, checkGate, checkRunway, clear: () => setResult(null) }
+  return { checking, result, checkGate, checkRunway, clear }
 }
