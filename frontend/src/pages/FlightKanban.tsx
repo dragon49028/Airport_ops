@@ -6,7 +6,8 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
-  closestCorners
+  closestCorners,
+  useDroppable
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -60,8 +61,10 @@ function FlightCard({
     <div
       ref={setNodeRef}
       style={style}
+      {...attributes}
+      {...listeners}
       className={cn(
-        'bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2 cursor-default',
+        'bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2 cursor-grab active:cursor-grabbing',
         overlay && 'shadow-2xl ring-2 ring-indigo-500 rotate-1'
       )}
     >
@@ -71,9 +74,10 @@ function FlightCard({
         </span>
 
         <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-800 rounded"
+          className="p-1 hover:bg-gray-800 rounded pointer-events-none"
+          tabIndex={-1}
+          type="button"
+          aria-hidden="true"
         >
           <GripVertical className="w-3.5 h-3.5 text-gray-600" />
         </button>
@@ -110,6 +114,53 @@ function FlightCard({
   )
 }
 
+function KanbanColumn({
+  status,
+  label,
+  color,
+  flights
+}: {
+  status: FlightStatus
+  label: string
+  color: string
+  flights: FlightSchedule[]
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: status })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-xl border p-3 min-h-[200px] transition-colors',
+        color,
+        isOver && 'ring-2 ring-indigo-400/70'
+      )}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+          {label}
+        </h3>
+
+        <span className="text-xs font-mono bg-gray-800/60 text-gray-400 px-1.5 py-0.5 rounded-full">
+          {flights.length}
+        </span>
+      </div>
+
+      <SortableContext
+        id={status}
+        items={flights.map(f => f.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="space-y-2 min-h-[120px]">
+          {flights.map(f => (
+            <FlightCard key={f.id} flight={f} />
+          ))}
+        </div>
+      </SortableContext>
+    </div>
+  )
+}
+
 export default function FlightKanban() {
 
   const qc = useQueryClient()
@@ -118,7 +169,8 @@ export default function FlightKanban() {
   const { data: flightPage } = useQuery({
     queryKey: ['flights', 'kanban'],
     queryFn: () => flightsApi.getAll({ size: 100 }).then(r => r.data),
-    refetchInterval: 30000
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true
   })
 
   const flights = flightPage?.content ?? []
@@ -135,6 +187,15 @@ export default function FlightKanban() {
   const activeFlight =
     activeId ? flights.find(f => f.id === activeId) : null
 
+  const resolveDropStatus = (overId: string | number): FlightStatus | null => {
+    const columnMatch = COLUMNS.find(c => c.status === overId)
+    if (columnMatch) return columnMatch.status
+
+    const overFlightId = typeof overId === 'string' ? Number(overId) : overId
+    const overFlight = flights.find(f => f.id === overFlightId)
+    return overFlight?.status ?? null
+  }
+
   const handleDragStart = (e: DragStartEvent) =>
     setActiveId(e.active.id as number)
 
@@ -145,9 +206,8 @@ export default function FlightKanban() {
 
     if (!over) return
 
-    const targetStatus = over.id as FlightStatus
-
-    if (!COLUMNS.find(c => c.status === targetStatus)) return
+    const targetStatus = resolveDropStatus(over.id as string | number)
+    if (!targetStatus) return
 
     const flight = flights.find(f => f.id === active.id)
 
@@ -187,39 +247,13 @@ export default function FlightKanban() {
             )
 
             return (
-              <div
+              <KanbanColumn
                 key={col.status}
-                className={cn(
-                  'rounded-xl border p-3 min-h-[200px]',
-                  col.color
-                )}
-              >
-
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                    {col.label}
-                  </h3>
-
-                  <span className="text-xs font-mono bg-gray-800/60 text-gray-400 px-1.5 py-0.5 rounded-full">
-                    {colFlights.length}
-                  </span>
-                </div>
-
-                <SortableContext
-                  id={col.status}
-                  items={colFlights.map(f => f.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-
-                  <div className="space-y-2">
-                    {colFlights.map(f => (
-                      <FlightCard key={f.id} flight={f} />
-                    ))}
-                  </div>
-
-                </SortableContext>
-
-              </div>
+                status={col.status}
+                label={col.label}
+                color={col.color}
+                flights={colFlights}
+              />
             )
           })}
 

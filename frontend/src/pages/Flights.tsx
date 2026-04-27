@@ -500,6 +500,25 @@ export default function FlightsPage(){
 
           </div>
 
+          <FormField label="Status" error={undefined} required>
+
+            <Select
+              value={formData.status}
+              onChange={e=>setFormData({...formData,status:e.target.value as FlightStatus})}
+            >
+
+              <option value="SCHEDULED">Scheduled</option>
+              <option value="BOARDING">Boarding</option>
+              <option value="IN_FLIGHT">In Flight</option>
+              <option value="ARRIVED">Arrived</option>
+              <option value="DEPARTED">Departed</option>
+              <option value="DELAYED">Delayed</option>
+              <option value="CANCELLED">Cancelled</option>
+
+            </Select>
+
+          </FormField>
+
           <div className="flex justify-end gap-3 pt-4">
 
             <Button type="button" onClick={()=>{setIsModalOpen(false);resetForm()}}>

@@ -1,5 +1,17 @@
 package com.airport.service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.airport.dto.FlightRequest;
 import com.airport.entity.Aircraft;
 import com.airport.entity.FlightSchedule;
@@ -8,16 +20,8 @@ import com.airport.exception.ResourceNotFoundException;
 import com.airport.repository.AircraftRepository;
 import com.airport.repository.FlightScheduleRepository;
 import com.airport.specification.FlightSpecification;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -32,19 +36,26 @@ public class FlightScheduleService {
                                         String airline, LocalDateTime from, LocalDateTime to,
                                         Pageable pageable) {
         Specification<FlightSchedule> spec = FlightSpecification.withFilters(search, status, from, to, airline);
-        return flightRepo.findAll(spec, pageable);
+        Page<FlightSchedule> page = flightRepo.findAll(spec, pageable);
+        applyAutoDelayRules(page.getContent());
+        return page;
     }
 
     public FlightSchedule findById(Long id) {
-        return flightRepo.findById(id)
+        FlightSchedule flight = flightRepo.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Flight not found: " + id));
+        applyAutoDelayRules(List.of(flight));
+        return flight;
     }
 
     public List<FlightSchedule> findActive() {
-        return flightRepo.findActiveFlights();
+        List<FlightSchedule> flights = flightRepo.findActiveFlights();
+        applyAutoDelayRules(flights);
+        return flights;
     }
 
     public FlightSchedule create(FlightRequest req) {
+        validateCreateRequest(req);
         if (flightRepo.findByFlightNumber(req.getFlightNumber()).isPresent())
             throw new IllegalArgumentException("Flight number already exists: " + req.getFlightNumber());
         FlightSchedule flight = new FlightSchedule();
@@ -58,6 +69,7 @@ public class FlightScheduleService {
     public FlightSchedule update(Long id, FlightRequest req) {
         FlightSchedule flight = findById(id);
         mapRequest(req, flight);
+        normalizeStatusAfterEdit(flight, req);
         if (flight.getAircraft() != null) updateAircraftStatus(flight.getAircraft(), flight.getStatus());
         FlightSchedule saved = flightRepo.save(flight);
         ssePublisher.publishFlightUpdate(Map.of("event", "updated", "flightNumber", saved.getFlightNumber(), "status", saved.getStatus()));
@@ -81,13 +93,13 @@ public class FlightScheduleService {
     }
 
     private void mapRequest(FlightRequest req, FlightSchedule flight) {
-        flight.setFlightNumber(req.getFlightNumber());
-        flight.setOrigin(req.getOrigin());
-        flight.setDestination(req.getDestination());
+        if (req.getFlightNumber() != null) flight.setFlightNumber(req.getFlightNumber());
+        if (req.getOrigin() != null) flight.setOrigin(req.getOrigin());
+        if (req.getDestination() != null) flight.setDestination(req.getDestination());
         if (req.getAirline() != null) flight.setAirline(req.getAirline());
         if (req.getPriority() != null) flight.setPriority(req.getPriority());
-        flight.setScheduledArrival(req.getScheduledArrival());
-        flight.setScheduledDeparture(req.getScheduledDeparture());
+        if (req.getScheduledArrival() != null) flight.setScheduledArrival(req.getScheduledArrival());
+        if (req.getScheduledDeparture() != null) flight.setScheduledDeparture(req.getScheduledDeparture());
         if (req.getStatus() != null) flight.setStatus(req.getStatus());
         if (req.getRemarks() != null) flight.setRemarks(req.getRemarks());
         if (req.getDelayMinutes() != null) flight.setDelayMinutes(req.getDelayMinutes());
@@ -98,13 +110,89 @@ public class FlightScheduleService {
         }
     }
 
+    private void validateCreateRequest(FlightRequest req) {
+        if (req.getFlightNumber() == null || req.getFlightNumber().isBlank()) {
+            throw new IllegalArgumentException("Flight number is required");
+        }
+    }
+
     private void updateAircraftStatus(Aircraft aircraft, FlightSchedule.FlightStatus flightStatus) {
         switch (flightStatus) {
             case IN_FLIGHT -> aircraft.setStatus(Aircraft.AircraftStatus.IN_FLIGHT);
-            case ARRIVED, BOARDING -> aircraft.setStatus(Aircraft.AircraftStatus.AT_GATE);
+            case ARRIVED, BOARDING, DELAYED -> aircraft.setStatus(Aircraft.AircraftStatus.AT_GATE);
             case DEPARTED -> aircraft.setStatus(Aircraft.AircraftStatus.AVAILABLE);
             default -> {}
         }
         aircraftRepo.save(aircraft);
+    }
+
+    private void applyAutoDelayRules(List<FlightSchedule> flights) {
+        LocalDateTime now = LocalDateTime.now();
+        List<FlightSchedule> changed = new ArrayList<>();
+
+        for (FlightSchedule flight : flights) {
+            if (!shouldAutoDelay(flight, now)) continue;
+
+            flight.setStatus(FlightSchedule.FlightStatus.DELAYED);
+
+            long overdueMinutes = Duration.between(flight.getScheduledDeparture(), now).toMinutes();
+            int computedDelay = (int) Math.max(1, overdueMinutes);
+            flight.setDelayMinutes(computedDelay);
+
+            if (flight.getAircraft() != null) {
+                updateAircraftStatus(flight.getAircraft(), FlightSchedule.FlightStatus.DELAYED);
+            }
+
+            changed.add(flight);
+        }
+
+        if (!changed.isEmpty()) {
+            flightRepo.saveAll(changed);
+            ssePublisher.publishFlightUpdate(Map.of("event", "auto-delayed", "count", changed.size()));
+        }
+    }
+
+    private boolean shouldAutoDelay(FlightSchedule flight, LocalDateTime now) {
+        if (flight.getScheduledDeparture() == null) return false;
+        if (flight.getActualDeparture() != null) return false;
+
+        FlightSchedule.FlightStatus status = flight.getStatus();
+        if (status != FlightSchedule.FlightStatus.SCHEDULED
+            && status != FlightSchedule.FlightStatus.BOARDING
+            && status != FlightSchedule.FlightStatus.DELAYED) {
+            return false;
+        }
+
+        return flight.getScheduledDeparture().isBefore(now);
+    }
+
+    private void normalizeStatusAfterEdit(FlightSchedule flight, FlightRequest req) {
+        if (flight.getActualDeparture() != null) {
+            return;
+        }
+
+        if (flight.getScheduledDeparture() == null) {
+            return;
+        }
+
+        if (flight.getStatus() == FlightSchedule.FlightStatus.CANCELLED) {
+            return;
+        }
+
+        boolean departureIsStillOverdue = flight.getScheduledDeparture().isBefore(LocalDateTime.now());
+        if (!departureIsStillOverdue && flight.getStatus() == FlightSchedule.FlightStatus.DELAYED) {
+            flight.setStatus(FlightSchedule.FlightStatus.SCHEDULED);
+            if (flight.getDelayMinutes() != null && flight.getDelayMinutes() > 0) {
+                flight.setDelayMinutes(0);
+            }
+            return;
+        }
+
+        if (!departureIsStillOverdue && req.getStatus() == FlightSchedule.FlightStatus.DELAYED) {
+            flight.setStatus(FlightSchedule.FlightStatus.SCHEDULED);
+            if (flight.getDelayMinutes() != null && flight.getDelayMinutes() > 0) {
+                flight.setDelayMinutes(0);
+            }
+        }
     }
 }
