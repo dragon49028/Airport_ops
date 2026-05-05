@@ -2,6 +2,7 @@ package com.airport.service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional
 public class FlightScheduleService {
+
+    private static final ZoneId AIRPORT_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final FlightScheduleRepository flightRepo;
     private final AircraftRepository aircraftRepo;
@@ -127,7 +130,7 @@ public class FlightScheduleService {
     }
 
     private void applyAutoDelayRules(List<FlightSchedule> flights) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(AIRPORT_ZONE);
         List<FlightSchedule> changed = new ArrayList<>();
 
         for (FlightSchedule flight : flights) {
@@ -179,7 +182,7 @@ public class FlightScheduleService {
             return;
         }
 
-        boolean departureIsStillOverdue = flight.getScheduledDeparture().isBefore(LocalDateTime.now());
+        boolean departureIsStillOverdue = flight.getScheduledDeparture().isBefore(LocalDateTime.now(AIRPORT_ZONE));
         if (!departureIsStillOverdue && flight.getStatus() == FlightSchedule.FlightStatus.DELAYED) {
             flight.setStatus(FlightSchedule.FlightStatus.SCHEDULED);
             if (flight.getDelayMinutes() != null && flight.getDelayMinutes() > 0) {
